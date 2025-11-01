@@ -15,7 +15,7 @@ A Next.js 14 API server with PostgreSQL database, built with TypeScript and Dock
 - Health check and database management endpoints
 - **Interactive Swagger/OpenAPI Documentation** at `/api-docs`
 - **Webhook System** for real-time notifications
-- **Comprehensive Test ** 
+- **Comprehensive Test** 
 
 ## Prerequisites
 
@@ -29,13 +29,14 @@ A Next.js 14 API server with PostgreSQL database, built with TypeScript and Dock
 1. Clone the repository and navigate to the project directory
 
 2. Start the application with Docker Compose:
+
 ```bash
 docker-compose up --build
 ```
 
 3. The application will be available at `http://localhost:3000`
 
-4. (Optional) Load test data:
+4. Load test data:
 ```bash
 docker-compose exec -T postgres psql -U postgres -d expense_tracker < backup.sql
 ```
