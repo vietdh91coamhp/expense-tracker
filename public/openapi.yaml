@@ -1,0 +1,654 @@
+openapi: 3.0.0
+info:
+  title: Expense Tracker API
+  description: A RESTful API for tracking personal expenses with user management and analytics
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@expense-tracker.com
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:3000
+    description: Development server
+  - url: https://api.expense-tracker.com
+    description: Production server
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Users
+    description: User management operations
+  - name: Expenses
+    description: Expense tracking and management
+  - name: Analytics
+    description: Expense analytics and reporting
+  - name: Webhooks
+    description: Webhook management for real-time notifications
+  - name: Admin
+    description: Administrative operations
+
+paths:
+  /api/health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Check if the API and database are operational
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  message:
+                    type: string
+                    example: API and database are healthy
+                  timestamp:
+                    type: string
+                    format: date-time
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/users:
+    get:
+      tags:
+        - Users
+      summary: Get all users
+      description: Retrieve a list of all users, optionally filtered by email
+      parameters:
+        - name: email
+          in: query
+          description: Filter users by email address
+          schema:
+            type: string
+            format: email
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  count:
+                    type: integer
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags:
+        - Users
+      summary: Create a new user
+      description: Register a new user in the system
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - email
+              properties:
+                name:
+                  type: string
+                  example: John Doe
+                email:
+                  type: string
+                  format: email
+                  example: john@example.com
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '400':
+          description: Bad request (invalid data)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/users/{id}:
+    get:
+      tags:
+        - Users
+      summary: Get user by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: User details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags:
+        - Users
+      summary: Update user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '400':
+          description: Bad request
+        '404':
+          description: User not found
+        '409':
+          description: Email already exists
+
+    delete:
+      tags:
+        - Users
+      summary: Delete user
+      description: Delete a user and all associated expenses
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: User deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+
+  /api/expenses:
+    get:
+      tags:
+        - Expenses
+      summary: Get all expenses
+      description: Retrieve expenses with optional filters
+      parameters:
+        - name: userId
+          in: query
+          schema:
+            type: integer
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: List of expenses
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  expenses:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Expense'
+                  count:
+                    type: integer
+
+    post:
+      tags:
+        - Expenses
+      summary: Create a new expense
+      description: Add a new expense and trigger webhooks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+                - amount
+                - category
+              properties:
+                userId:
+                  type: integer
+                amount:
+                  type: number
+                  format: float
+                  example: 50.00
+                category:
+                  type: string
+                  example: Food
+                description:
+                  type: string
+                  example: Groceries
+                date:
+                  type: string
+                  format: date
+      responses:
+        '201':
+          description: Expense created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  expense:
+                    $ref: '#/components/schemas/Expense'
+        '400':
+          description: Bad request
+        '404':
+          description: User not found
+
+  /api/expenses/{userId}:
+    get:
+      tags:
+        - Expenses
+      summary: Get expenses for a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: User expenses
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userId:
+                    type: integer
+                  expenses:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Expense'
+                  count:
+                    type: integer
+        '404':
+          description: User not found
+
+  /api/expenses/{userId}/total:
+    get:
+      tags:
+        - Analytics
+      summary: Get total expenses by category
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Total expenses by category
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseTotalResponse'
+
+  /api/expenses/{userId}/monthly:
+    get:
+      tags:
+        - Analytics
+      summary: Get monthly spending summary
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: year
+          in: query
+          schema:
+            type: string
+        - name: month
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Monthly spending breakdown
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonthlySpendingResponse'
+
+  /api/webhooks:
+    get:
+      tags:
+        - Webhooks
+      summary: List all webhooks
+      responses:
+        '200':
+          description: List of registered webhooks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  webhooks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Webhook'
+                  count:
+                    type: integer
+
+    post:
+      tags:
+        - Webhooks
+      summary: Register a new webhook
+      description: Register a webhook URL to receive expense creation notifications
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - url
+                - event
+              properties:
+                url:
+                  type: string
+                  format: uri
+                  example: https://example.com/webhook
+                event:
+                  type: string
+                  enum: [expense.created]
+                  example: expense.created
+                secret:
+                  type: string
+                  description: Optional secret for HMAC signature verification
+      responses:
+        '201':
+          description: Webhook registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  webhook:
+                    $ref: '#/components/schemas/Webhook'
+
+  /api/webhooks/{id}:
+    delete:
+      tags:
+        - Webhooks
+      summary: Delete a webhook
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Webhook deleted
+        '404':
+          description: Webhook not found
+
+  /api/init:
+    post:
+      tags:
+        - Admin
+      summary: Initialize database
+      description: Create database tables and indexes
+      responses:
+        '200':
+          description: Database initialized
+        '500':
+          description: Initialization failed
+
+  /api/reset:
+    post:
+      tags:
+        - Admin
+      summary: Reset database
+      description: Drop all database tables
+      responses:
+        '200':
+          description: Database reset
+        '500':
+          description: Reset failed
+
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: John Doe
+        email:
+          type: string
+          format: email
+          example: john@example.com
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Expense:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        amount:
+          type: number
+          format: float
+        category:
+          type: string
+        description:
+          type: string
+          nullable: true
+        date:
+          type: string
+          format: date
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Webhook:
+      type: object
+      properties:
+        id:
+          type: integer
+        url:
+          type: string
+          format: uri
+        event:
+          type: string
+          enum: [expense.created]
+        secret:
+          type: string
+          nullable: true
+        active:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    CategoryTotal:
+      type: object
+      properties:
+        category:
+          type: string
+        count:
+          type: integer
+        total:
+          type: number
+        average:
+          type: number
+        minAmount:
+          type: number
+        maxAmount:
+          type: number
+        percentage:
+          type: string
+
+    ExpenseTotalResponse:
+      type: object
+      properties:
+        userId:
+          type: integer
+        totalExpenses:
+          type: number
+        totalTransactions:
+          type: integer
+        byCategory:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategoryTotal'
+
+    MonthlySpendingResponse:
+      type: object
+      properties:
+        userId:
+          type: integer
+        totalExpenses:
+          type: number
+        totalTransactions:
+          type: integer
+        monthlyBreakdown:
+          type: array
+          items:
+            type: object
+        filters:
+          type: object
+          properties:
+            year:
+              type: string
+            month:
+              type: string
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        details:
+          type: string
+
